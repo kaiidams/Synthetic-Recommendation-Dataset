@@ -98,30 +98,27 @@ def make_transaction(session_user, session_ts):
 
 def make_user_vec(gender, age, location, user_age_min, user_age_max):
     age_t = (age - user_age_min) / user_age_max
-    vec = (
-        gender_vec[gender]
-        + location_vec[location]
-        + spline(age_t, age_vec)
-    )
+    vec = gender_vec[gender] + location_vec[location]
+    vec += spline(age_t, age_vec)
     vec += np.random.randn(*vec.shape) * user_std
     vec /= np.linalg.norm(vec, axis=-1, keepdims=True)
     return vec
 
 
 def make_item_vec(color):
-    vec = item_color_vec[color]
+    vec = item_color_vec[color].copy()
     vec += np.random.randn(*vec.shape) * item_std
     return vec
 
 
 def make_session_vec(user_vec, session_user):
-    session_vec = user_vec[session_user]
-    session_vec += np.random.randn(*session_vec.shape) * session_std
-    return session_vec
+    vec = user_vec[session_user].copy()
+    vec += np.random.randn(*vec.shape) * session_std
+    return vec
 
 
 def make_transaction_vec(session_vec, transaction_session):
-    transaction_vec = session_vec[transaction_session]
+    transaction_vec = session_vec[transaction_session].copy()
     transaction_vec += np.random.randn(*transaction_vec.shape) * transaction_std
     return transaction_vec
 
