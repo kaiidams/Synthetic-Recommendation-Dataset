@@ -268,26 +268,19 @@ def combine():
     table = dataset.to_table()
     pq.write_table(table, 'output/item.parquet')
 
-    cur_date = start_date
-    while cur_date < end_date:
-        x = (cur_date - timedelta(days=1)).strftime('%Y-%m-%d')
-        y = cur_date.strftime('%Y-%m-%d')
-        print(x)
-        files = list(rootdir.glob(f'transaction-{x}-*.parquet'))
-        files += rootdir.glob(f'transaction-{y}-*.parquet')
-        dataset = ds.dataset(files)
-        next_date = cur_date + timedelta(days=1)
-        table = dataset.to_table(
-            filter=(ds.field('timestamp') >= cur_date) & (ds.field('timestamp') < next_date))
-        table = table.sort_by('timestamp')
-        pq.write_table(table, f'output/transaction/{x}.parquet')
-        cur_date = next_date
+    files = list(rootdir.glob('transaction-*.parquet'))
+    dataset = ds.dataset(files)
+    table = dataset.to_table(
+        filter=(ds.field('timestamp') >= start_date) & (ds.field('timestamp') < end_date))
+    pq.write_table(table, 'output/transaction.parquet')
 
 
 def main():
     os.makedirs('tmp', exist_ok=False)
-    os.makedirs('output/transaction', exist_ok=False)
+    os.makedirs('output', exist_ok=False)
+    generate()
+    combine()
 
 
 if __name__ == '__main__':
-    generate()
+    main()
