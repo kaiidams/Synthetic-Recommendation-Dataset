@@ -3,10 +3,12 @@
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyarrow.compute as pc
+import pyarrow.dataset as ds
 
 np.random.seed(1234)
 
@@ -146,14 +148,12 @@ def write_item(item_part_index, item_id, item_color):
 
 
 def write_user(user_part_index, user_id, user_gender, user_age, user_location):
-    gender_dict = pa.dictionary(pa.int8(), pa.utf8())
-    location_dict = pa.dictionary(pa.int8(), pa.utf8())
     table = pa.table(
         [
             pa.array(user_id),
-            pa.array([gender_labels[x] for x in user_gender], gender_dict),
+            pa.array([gender_labels[x] for x in user_gender]),
             pa.array(user_age, pa.float32()),
-            pa.array([location_labels[x] for x in user_location], location_dict),
+            pa.array([location_labels[x] for x in user_location]),
         ],
         ['user', 'gender', 'age', 'location'])
     pq.write_table(table, f'tmp/user-{user_part_index:04d}.parquet')
@@ -167,15 +167,12 @@ def write_transaction(
     transaction_session_id,
     transaction_ts, transaction_item, item_id
 ):
-    user_id_dict = pa.dictionary(pa.int32(), pa.utf8())
-    session_id_dict = pa.dictionary(pa.int32(), pa.utf8())
-    item_dict = pa.dictionary(pa.int32(), pa.utf8())
     table = pa.table(
         [
-            pa.array([user_id[x] for x in transaction_user], user_id_dict),
-            pa.array(transaction_session_id, session_id_dict),
+            pa.array([user_id[x] for x in transaction_user]),
+            pa.array(transaction_session_id),
             pc.cast(transaction_ts, pa.timestamp('s')),
-            pa.array([item_id[x] for x in transaction_item], item_dict),
+            pa.array([item_id[x] for x in transaction_item]),
         ],
         ['user', 'session', 'timestamp', 'item'])
     pq.write_table(table, f'tmp/transaction-{date_part}-{user_part_index:04d}.parquet')
@@ -191,8 +188,6 @@ def make_random_id(n, prefix, nbytes):
 
 
 def generate():
-
-    os.makedirs('tmp', exist_ok=False)
 
     item_part_index = 0
     user_part_index = 0
@@ -230,7 +225,7 @@ def generate():
             user_age_min, user_age_max)
         item_vec = make_item_vec(item_color)
 
-        date = start_date
+        date = start_date - timedelta(days=1)
         while date < end_date:
             date_part = date.strftime('%Y-%m-%d')
             print(f'\r{date_part}-{user_part_index:04d}', end='')
@@ -258,6 +253,40 @@ def generate():
             date += date_batch_size
         user_part_index += 1
     item_part_index += 1
+
+
+def combine():
+    rootdir = Path('tmp')
+
+    files = list(rootdir.glob('user-*.parquet'))
+    dataset = ds.dataset(files)
+    table = dataset.to_table()
+    pq.write_table(table, 'output/user.parquet')
+
+    files = list(rootdir.glob('item-*.parquet'))
+    dataset = ds.dataset(files)
+    table = dataset.to_table()
+    pq.write_table(table, 'output/item.parquet')
+
+    cur_date = start_date
+    while cur_date < end_date:
+        x = (cur_date - timedelta(days=1)).strftime('%Y-%m-%d')
+        y = cur_date.strftime('%Y-%m-%d')
+        print(x)
+        files = list(rootdir.glob(f'transaction-{x}-*.parquet'))
+        files += rootdir.glob(f'transaction-{y}-*.parquet')
+        dataset = ds.dataset(files)
+        next_date = cur_date + timedelta(days=1)
+        table = dataset.to_table(
+            filter=(ds.field('timestamp') >= cur_date) & (ds.field('timestamp') < next_date))
+        table = table.sort_by('timestamp')
+        pq.write_table(table, f'output/transaction/{x}.parquet')
+        cur_date = next_date
+
+
+def main():
+    os.makedirs('tmp', exist_ok=False)
+    os.makedirs('output/transaction', exist_ok=False)
 
 
 if __name__ == '__main__':
