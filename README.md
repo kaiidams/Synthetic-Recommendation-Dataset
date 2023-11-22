@@ -10,3 +10,12 @@ Run
 ```py
 python synrecom.py
 ```
+
+This generates two directories `tmp` and `output`.
+The output files are in the `output`.
+
+```
+-rw-r--r-- 1 jovyan jovyan   1689536 Nov 21 15:42 item.parquet
+-rw-r--r-- 1 jovyan jovyan 365243356 Nov 21 15:44 transaction.parquet
+-rw-r--r-- 1 jovyan jovyan   8806794 Nov 21 15:42 user.parquet
+```

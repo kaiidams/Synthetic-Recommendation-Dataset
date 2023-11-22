@@ -201,7 +201,7 @@ def generate():
         color_probs=item_color_probs)
     write_item(item_part_index, item_id, item_color)
 
-    print()
+    print("Processing")
 
     for _ in range(0, num_users, user_batch_size):
 
@@ -253,23 +253,31 @@ def generate():
             date += date_batch_size
         user_part_index += 1
     item_part_index += 1
+    print()
 
 
-def combine():
+def combine(sort_by_user=True):
+    print("Combining")
+
     rootdir = Path('tmp')
 
     files = list(rootdir.glob('user-*.parquet'))
     dataset = ds.dataset(files)
-    table = dataset.to_table()
+    table = dataset.sort_by("user").to_table()
     pq.write_table(table, 'output/user.parquet')
 
     files = list(rootdir.glob('item-*.parquet'))
     dataset = ds.dataset(files)
-    table = dataset.to_table()
+    table = dataset.sort_by("item").to_table()
     pq.write_table(table, 'output/item.parquet')
 
     files = list(rootdir.glob('transaction-*.parquet'))
     dataset = ds.dataset(files)
+    if sort_by_user:
+        # This produces a more compact parquet file.
+        dataset = dataset.sort_by([("user", "ascending"), ("session", "ascending")])
+    else:
+        dataset = dataset.sort_by([("timestamp", "ascending"), ("session", "ascending")])
     table = dataset.to_table(
         filter=(ds.field('timestamp') >= start_date) & (ds.field('timestamp') < end_date))
     pq.write_table(table, 'output/transaction.parquet')
